@@ -1,0 +1,455 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using ESRI.ArcGIS.ArcMapUI;
+using ESRI.ArcGIS.Carto;
+using ESRI.ArcGIS.Catalog;
+using ESRI.ArcGIS.Geodatabase;
+using ESRI.ArcGIS.CatalogUI;
+using ESRI.ArcGIS.DataSourcesFile;
+using ESRI.ArcGIS.DataSourcesGDB;
+using ESRI.ArcGIS.Geometry;
+
+
+namespace clsArcMapMappingTools
+{
+    public partial class frmRepcAssignCensusBlocks : Form
+    {
+        public frmRepcAssignCensusBlocks()
+        {
+            InitializeComponent();
+        }
+
+        //variables used throughout this 
+        IMxDocument pMxDocument;
+        IActiveView pActiveView;
+        IMap pMap;
+        IFeatureLayer pCensusFeatureLayer = null;
+        IFeatureLayer pVotPctFeatureLayer = null;
+
+
+
+        //FORM LOAD -> EVENT//
+        private void frmRepcAssignCensusBlocks_Load(object sender, EventArgs e)
+        {
+            try
+            {
+                //show busy mouse
+                System.Windows.Forms.Cursor.Current = System.Windows.Forms.Cursors.WaitCursor;
+
+
+                //get access to the document (the current mxd), and the active view (data view or layout view), and the focus map (the data-view's data-frame with active focus)
+                pMxDocument = (IMxDocument)clsElecMappingToolsExtension.m_application.Document;
+                pActiveView = pMxDocument.ActiveView; //set the active view to the document's current active view state (aka: page layout or map)
+                pMap = pActiveView.FocusMap; //set the map to currently selected/activated map/frame within the document's active view
+
+
+                ILayer pLayer;
+                IFeatureLayer pFeatureLayer;
+
+
+                //load the comboboxs with the map's polygon layers
+                for (int i = 0; i < pMap.LayerCount; i++)
+                {
+                    pLayer = pMap.get_Layer(i);
+
+                    if (pLayer is FeatureLayer)
+                    {
+                        pFeatureLayer = pLayer as IFeatureLayer;
+
+                        if (pFeatureLayer.FeatureClass.ShapeType == ESRI.ArcGIS.Geometry.esriGeometryType.esriGeometryPolygon)
+                        {
+                            cboCensusLayer.Items.Add(pFeatureLayer.Name);
+                            cboVotingPrecinctLayer.Items.Add(pFeatureLayer.Name);
+                        }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error Message: " + Environment.NewLine + ex.Message + Environment.NewLine + Environment.NewLine +
+                "Error Source: " + Environment.NewLine + ex.Source + Environment.NewLine + Environment.NewLine +
+                "Error Location:" + Environment.NewLine + ex.StackTrace,
+                "Election ArcMap Mapping Tools Error!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            }
+        }
+
+
+
+
+        //this method runs when the user clicks the 'more info >>>' button
+        private void lblMoreInfo_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                //show busy mouse
+                System.Windows.Forms.Cursor.Current = System.Windows.Forms.Cursors.WaitCursor;
+
+                if (this.Size.Height == 357)
+                {
+                    this.Size = (new System.Drawing.Size(438, 247));
+                    lblMoreInfo.Text = "More Info >>>";
+                }
+                else
+                {
+                    this.Size = (new System.Drawing.Size(438, 357));
+                    lblMoreInfo.Text = "Less Info <<<";
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error Message: " + Environment.NewLine + ex.Message + Environment.NewLine + Environment.NewLine +
+                "Error Source: " + Environment.NewLine + ex.Source + Environment.NewLine + Environment.NewLine +
+                "Error Location:" + Environment.NewLine + ex.StackTrace,
+                "Election ArcMap Mapping Tools Error!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            }
+        }
+
+
+
+
+
+        //method is run when the user selects or changes the selection in the census layer combobox
+        private void cboCensusLayer_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                //show busy mouse
+                System.Windows.Forms.Cursor.Current = System.Windows.Forms.Cursors.WaitCursor;
+
+                cboCensusField.Items.Clear();
+                cboCensusField.Text = ""; //use this line to also clear out the active-visible value in the combobox
+
+                if (cboCensusLayer.SelectedIndex != -1)
+                {
+                    //loop through the map's layer and get access to the layer in the census combobox
+                    for (int i = 0; i < pMap.LayerCount; i++)
+                    {
+                        if (pMap.get_Layer(i).Name == cboCensusLayer.Text)
+                        {
+                            pCensusFeatureLayer = pMap.get_Layer(i) as IFeatureLayer;
+                            break;
+                        }
+
+                    }
+                }
+
+                //verify that we have access to the feature layer
+                if (pCensusFeatureLayer == null)
+                {
+                    MessageBox.Show("There was an issue with the " + cboCensusLayer.Text + " layer.  It couldn't be set to an ArcObject's IFeatureLayer using its name property.", "Layer Name Issue", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                //add the fields to the census fields combobox
+                for (int i = 0; i < pCensusFeatureLayer.FeatureClass.Fields.FieldCount; i++)
+                {
+                    if (pCensusFeatureLayer.FeatureClass.Fields.Field[i].Type != ESRI.ArcGIS.Geodatabase.esriFieldType.esriFieldTypeGeometry & pCensusFeatureLayer.FeatureClass.Fields.Field[i].Type != ESRI.ArcGIS.Geodatabase.esriFieldType.esriFieldTypeOID)
+                    {
+                        cboCensusField.Items.Add(pCensusFeatureLayer.FeatureClass.Fields.Field[i].Name).ToString();
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error Message: " + Environment.NewLine + ex.Message + Environment.NewLine + Environment.NewLine +
+                "Error Source: " + Environment.NewLine + ex.Source + Environment.NewLine + Environment.NewLine +
+                "Error Location:" + Environment.NewLine + ex.StackTrace,
+                "Election ArcMap Mapping Tools Error!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            }
+        }
+
+
+
+
+
+        //method is run when the user selects or changes the selection in the voting precinct layer combobox
+        private void cboVotingPrecinctLayer_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                //show busy mouse
+                System.Windows.Forms.Cursor.Current = System.Windows.Forms.Cursors.WaitCursor;
+
+                cboVotingPrecinctField.Items.Clear();
+                cboVotingPrecinctField.Text = ""; //use this line to also clear out the active-visible value in the combobox
+
+
+                if (cboVotingPrecinctLayer.SelectedIndex != -1)
+                {
+
+                    //loop through the map's layer and get access to the layer in the census combobox
+                    for (int i = 0; i < pMap.LayerCount; i++)
+                    {
+                        if (pMap.get_Layer(i).Name == cboVotingPrecinctLayer.Text)
+                        {
+                            pVotPctFeatureLayer = pMap.get_Layer(i) as IFeatureLayer;
+                        }
+                    }
+                }
+
+
+                //verify that we have access to the feature layer
+                if (pVotPctFeatureLayer == null)
+                {
+                    MessageBox.Show("There was an issue with the " + cboVotingPrecinctLayer.Text + " layer.  It couldn't be set to an ArcObject's IFeatureLayer using its name property.", "Layer Name Issue", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                //add the fields to the voting precincts fields combobox
+                for (int i = 0; i < pVotPctFeatureLayer.FeatureClass.Fields.FieldCount; i++)
+                {
+                    if (pVotPctFeatureLayer.FeatureClass.Fields.Field[i].Type != ESRI.ArcGIS.Geodatabase.esriFieldType.esriFieldTypeGeometry & pVotPctFeatureLayer.FeatureClass.Fields.Field[i].Type != ESRI.ArcGIS.Geodatabase.esriFieldType.esriFieldTypeOID)
+                    {
+                        cboVotingPrecinctField.Items.Add(pVotPctFeatureLayer.FeatureClass.Fields.Field[i].Name).ToString();
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error Message: " + Environment.NewLine + ex.Message + Environment.NewLine + Environment.NewLine +
+                "Error Source: " + Environment.NewLine + ex.Source + Environment.NewLine + Environment.NewLine +
+                "Error Location:" + Environment.NewLine + ex.StackTrace,
+                "Election ArcMap Mapping Tools Error!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            }
+        }
+
+
+
+
+
+        //this method runs when the user clicks the 'assign blocks' button on the form
+        private void cmdAssignBlocks_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                //show busy mouse
+                System.Windows.Forms.Cursor.Current = System.Windows.Forms.Cursors.WaitCursor;
+
+
+
+                //make sure all the needed items have been selected -> layers and fields
+                {
+                    if (cboCensusLayer.SelectedIndex == -1 | cboCensusField.SelectedIndex == -1 | cboVotingPrecinctLayer.SelectedIndex == -1 | cboVotingPrecinctField.SelectedIndex == -1)
+                    {
+                        MessageBox.Show("Not all selections have been made.", "Check Selections", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                }
+
+
+                //create a feature class to hold the table//
+                IGxDialog pGxDialog = new GxDialog();
+                pGxDialog.AllowMultiSelect = false;
+                pGxDialog.Title = "Save Table";
+                IGxObjectFilter pGxObjectFilter = new GxFilterFGDBTables();
+                pGxDialog.ObjectFilter = pGxObjectFilter;
+                pGxDialog.Name = "";  //clears out any text in the feature class name
+
+                //open dialog
+                Boolean CancelBrowser; //cancel the dialog if button is clicked
+                CancelBrowser = pGxDialog.DoModalSave(0); //opens the dialog to save data
+
+                //if cancel was clicked
+                if (CancelBrowser == false)
+                {
+                    return;
+                }
+
+                //replace spaces in name with underscores
+                pGxDialog.Name = pGxDialog.Name.Replace(" ", "_");
+
+                //make sure the fist character is not numeric
+                if (char.IsNumber(pGxDialog.Name, 0))
+                {
+                    MessageBox.Show("Please use an alpha character for the first character in the table name.", "Check First Character", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                //set the final location
+                IGxObject pGxObject = pGxDialog.FinalLocation;
+
+
+                //open the workspace
+                IWorkspaceFactory pWorkspaceFactory = new FileGDBWorkspaceFactory();
+                IWorkspace pWorkspace = pWorkspaceFactory.OpenFromFile(pGxObject.FullName, 0);
+                IFeatureWorkspace pFeatureWorkspace = (IFeatureWorkspace)pWorkspace;
+
+                //check if overwritting
+                IEnumDataset pEnumDataset = pWorkspace.get_Datasets(esriDatasetType.esriDTAny);
+                IDataset pDataset = pEnumDataset.Next();
+
+                //loop through all the datasets in the workspace
+                while (pDataset != null)
+                {
+                    //if the name exists in the dataset/workspace
+                    if (pDataset.Name == pGxDialog.Name)
+                    {
+                        //check if the user wants to overwrite the data
+                        if (MessageBox.Show("Overwrite existing data?", "Overwrite Data?", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == System.Windows.Forms.DialogResult.Yes)
+                        {
+                            //if the user wants to overwrite the data, delete the feature class with the same name
+                            pDataset.Delete();
+                            break; //exit the loop
+                        }
+                        else
+                        {
+                            return; //exit the method because the user does not want to overwite the data
+                        }
+                    }
+                    pDataset = pEnumDataset.Next(); //move to the next dataset
+                }
+
+
+
+
+                //create a fields collection for the feature class.
+                IFields pFields = new FieldsClass();
+                IFieldsEdit pFieldsEdit = (IFieldsEdit)pFields;
+
+                //add an ObjectID field to the fields collection. This is mandatory for feature classes.
+                IField oidField = new FieldClass();
+                IFieldEdit oidFieldEdit = (IFieldEdit)oidField;
+                oidFieldEdit.Name_2 = "OBJECTID";
+                oidFieldEdit.Type_2 = esriFieldType.esriFieldTypeOID;
+                pFieldsEdit.AddField(oidField);
+
+                //create field based on census layer's field chosen in combobox
+                IField censusField = new FieldClass();
+                IFieldEdit censusFieldEdit = (IFieldEdit)censusField;
+                censusFieldEdit.Name_2 = cboCensusField.Text;
+                censusFieldEdit.Type_2 = pCensusFeatureLayer.FeatureClass.Fields.Field[pCensusFeatureLayer.FeatureClass.Fields.FindField(cboCensusField.Text)].Type;
+                pFieldsEdit.AddField(censusField);
+
+                //create field based on census layer's field chosen in combobox
+                IField votPctField = new FieldClass();
+                IFieldEdit votPctFieldEdit = (IFieldEdit)votPctField;
+                votPctFieldEdit.Name_2 = cboVotingPrecinctField.Text;
+                votPctFieldEdit.Type_2 = pVotPctFeatureLayer.FeatureClass.Fields.Field[pVotPctFeatureLayer.FeatureClass.Fields.FindField(cboVotingPrecinctField.Text)].Type;
+                pFieldsEdit.AddField(votPctField);
+   
+
+                //use IFieldChecker to create a validated fields collection.
+                IFieldChecker fieldChecker = new FieldCheckerClass();
+                IEnumFieldError enumFieldError = null;
+                IFields validatedFields = null;
+                fieldChecker.ValidateWorkspace = (IWorkspace)pFeatureWorkspace;
+                fieldChecker.Validate(pFields, out enumFieldError, out validatedFields);
+
+
+                //create the feature class (the table)
+                ITable pOutputTable = pFeatureWorkspace.CreateTable(pGxDialog.Name, validatedFields, null, null, "");
+                IRow pOutputRow;
+
+
+
+                //loop through all the census features//
+                IFeatureCursor pCensusFeatureCursor = pCensusFeatureLayer.Search(null,false);
+                IFeature pCensusFeature;
+
+                while ((pCensusFeature = pCensusFeatureCursor.NextFeature()) != null)
+                {
+                    //create a new row in the table
+                    pOutputRow = pOutputTable.CreateRow();
+
+
+                    //setup the spatial filter
+                    ISpatialFilter pIntersectSpatialFilter = new SpatialFilter();
+                    pIntersectSpatialFilter.Geometry = pCensusFeature.Shape;
+                    pIntersectSpatialFilter.GeometryField = "SHAPE";
+                    pIntersectSpatialFilter.SpatialRel = esriSpatialRelEnum.esriSpatialRelIntersects;
+
+                    //get the voting precincts that intersect the census feature
+                    IFeatureCursor pIntersectedFeatureCursor = pVotPctFeatureLayer.Search(pIntersectSpatialFilter, false);
+                    IFeature pIntersectedFeature = pIntersectedFeatureCursor.NextFeature();
+                    double dblCurArea = 0;  //reset the area to 0
+                    double dblNextArea;
+                    object objIntersectVal = null;
+
+                    //loop through each feature that intersects the one specific census block we are presently looking at
+                    if (pIntersectedFeature != null)
+                    {
+                        while (pIntersectedFeature != null)
+                        {
+                            ITopologicalOperator pTopoOp = pIntersectedFeature.Shape as ITopologicalOperator;
+                            pTopoOp.Simplify();
+
+                            IArea pArea = pTopoOp.Intersect(pCensusFeature.Shape, esriGeometryDimension.esriGeometry2Dimension) as IArea; //gets the area where the two features intersect - topological operators are used when creating new geometries
+                            dblNextArea = pArea.Area;  //this is the area where the one specific census block overlaps the one specific vot pct feature we are looking at
+
+
+                            //checks each feature's area (each feature that's in the feature cursor) and assigns the one with the largest area to that specific block
+                            {
+                                if (dblNextArea > dblCurArea)
+                                {
+                                    dblCurArea = dblNextArea;
+                                    objIntersectVal = pIntersectedFeature.get_Value(pIntersectedFeature.Fields.FindField(cboVotingPrecinctField.Text));
+                                }
+                            }
+
+                            //advance to the next feature
+                            pIntersectedFeature = pIntersectedFeatureCursor.NextFeature();
+                        }       
+
+                        //populate the rows with the intersecting feauture
+                        pOutputRow.set_Value(pOutputRow.Fields.FindField(cboVotingPrecinctField.Text), objIntersectVal);
+                        pOutputRow.set_Value(pOutputRow.Fields.FindField(cboCensusField.Text), pCensusFeature.get_Value(pCensusFeature.Fields.FindField(cboCensusField.Text)));
+                    }
+                    else //if pIntersectedFeature is null, aka: no features were interesecting the block, then give the field a 0 value
+                    {
+                        pOutputRow.set_Value(pOutputRow.Fields.FindField(cboVotingPrecinctField.Text), "0");
+                        pOutputRow.set_Value(pOutputRow.Fields.FindField(cboCensusField.Text), pCensusFeature.get_Value(pCensusFeature.Fields.FindField(cboCensusField.Text)));
+                    }
+
+
+                    //store the row
+                    pOutputRow.Store();
+
+
+                    //release the feature cursor from memory
+                    System.Runtime.InteropServices.Marshal.ReleaseComObject(pIntersectedFeatureCursor);
+                    pIntersectedFeatureCursor = null;
+                    GC.Collect();
+
+                } //advance to the next census block (loop)
+
+
+                MessageBox.Show("The table has been created and is located here: " + pGxDialog.FinalLocation, "Process Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                this.Close();
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error Message: " + Environment.NewLine + ex.Message + Environment.NewLine + Environment.NewLine +
+                "Error Source: " + Environment.NewLine + ex.Source + Environment.NewLine + Environment.NewLine +
+                "Error Location:" + Environment.NewLine + ex.StackTrace,
+                "Election ArcMap Mapping Tools Error!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            }
+		
+
+        }
+    
+    
+
+
+
+    
+    
+    
+    
+    
+    
+    }
+}
+
+
